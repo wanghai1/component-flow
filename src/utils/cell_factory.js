@@ -5,8 +5,10 @@ export const cell = {
   right: '',
   width: '',
   height: '',
+  text: '',
   svg: '',
-  render: '', // String
+  render_type: '',
+  // render: '', // String
 }
 
 Object.defineProperty( cell , 'svg', {
@@ -31,5 +33,9 @@ Object.defineProperty( cell , 'svg', {
 // })
 
 export const line = {
-  
+  from: [],
+  to: [],
+  render: function(){
+
+  }
 }
