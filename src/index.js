@@ -1,6 +1,7 @@
 require("./style/comme.sass");
 import { cell } from "./utils/cell_factory";
 import { base_cell } from "./cell/cell_render.js";//
+import { renderLine } from "./lines/line_render.js";//
 
 
 const component_flow = class {
@@ -66,10 +67,16 @@ const component_flow = class {
       console.warn('cell 类型定义不正确，你需要定义一个cell对象或者cell对象数组');
     }
   }
+  regietser_line( content ){
+    this.regietserRenderLine = content;
+  }
 
   render () {
     // 选择渲染的单元格
     const cell_templete = this.renderCellTypes[0];
+
+    // 存储渲染的连线数据对象 
+    let lineArr = [];
 
     // 为每个单元格添加函数对象
     this.renderData = this.mapData(( data )=> {
@@ -77,19 +84,35 @@ const component_flow = class {
       setTimeout(()=> {
         console.log('newData',data, data.top, data._child_max_width );
       }, 200);
-
-      // data._child_max_width;
-      if(data.svg && data.render_type === 'svg') {
-        // var html  = new DOMParser().parseFromString(newData.render(newData), "text/xml");
-        // newData.svg = html.getElementsByTagName('svg');
-        // debugger;
-        // console.log(newData.svg);
-        // console.log(newData);
+      if( data.children && data.children.length > 0){
+        const childCounts = data.children.length;
+        data.children.forEach(item=> {
+          lineArr.push({
+            start: data,
+            end : item
+          })
+        })
       }
-
       return data;
     }, this.renderData);
 
+    // // 重新计算连线的起点和终点 -- 因为
+    lineArr = lineArr.map( ( value )=> {
+      let { start, end } = value;
+      // debugger;
+      start = {
+        left: start.left + start.width - start.cell_sapce_width,
+        top: start.top + start.height / 2
+      }
+      // debugger
+      end = {
+        left : end.left,
+        top: end.top + end.height / 2 
+      }
+      return { start, end };
+    })
+
+    this.renderLine(lineArr);
     this.renderCell();
   }
 
@@ -99,8 +122,17 @@ const component_flow = class {
       svg.setAttribute('x', left);
       svg.setAttribute('y', top);
       this.svgPage.appendChild(svg);
+
       return item;
     }, this.renderData)
+  }
+
+  renderLine(lineArr){
+    const lineAvgArr = this.regietserRenderLine(lineArr);
+    console.log( lineAvgArr);
+    lineAvgArr.forEach(line=> {
+      this.svgPage.appendChild(line);
+    })
   }
 
 
@@ -161,7 +193,7 @@ const flow = new component_flow({
               ]
             },
             {
-              label: '301'
+              label: '301',
             },
           ]
         },
@@ -174,6 +206,7 @@ const flow = new component_flow({
 });
 
 flow.regietser({ type: 'cell', content: base_cell });
+flow.regietser({ type: 'line', content: renderLine})
 
 flow.render();
 

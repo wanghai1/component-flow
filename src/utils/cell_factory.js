@@ -10,6 +10,8 @@ export const cell = {
   width: '',
   height: 0,
   render: '',
+  cell_sapce_width: 20,  // 默认宽度间距
+  cell_sapce_height: 0, // 默认高度间距
   _render:undefined,
   svg: undefined,
   // _child_max_height: '', // 子孩子中最大的宽度
@@ -22,9 +24,8 @@ Object.defineProperty(cell, 'render',{
       const html = new DOMParser().parseFromString(render_func(this), "text/xml");
       const svg = html.getElementsByTagName('svg')[0];
       this.svg = svg;
-      this.width = this.svg.getBBox().width || this.svg.width.baseVal.value;
-      this.height = this.svg.getBBox().height || this.svg.height.baseVal.value;
-      // this._child_max_height = this.width;
+      this.width = (this.svg.getBBox().width || this.svg.width.baseVal.value) + this.cell_sapce_width;
+      this.height = (this.svg.getBBox().height || this.svg.height.baseVal.value) + this.cell_sapce_height;
     }
     this._render = render_func;
   }
