@@ -5,19 +5,30 @@ import { renderLine } from "./lines/line_render.js";//
 
 
 const component_flow = class {
+  /*
+  * svgPage 画布dom
+  * target 渲染环境
+  * ele dom
+  * renderData 渲染数据
+  */
   constructor(options){
     this.initData(options)
-    this.initPage(); // 初始化画布；
+    this.svgPage =  this.initPage(); // 初始化画布；
+    this.bindEvent();
   }
 
   initData({ 
-    target,   //s vg || document || cavance
+    target,   // svg || document || cavance
     ele,      // 
-    flow_Data // 渲染数据
+    flow_Data, // 渲染数据
+    maxScale,
+    minSacle
   }){
     this.target = target;
     this.renderCellTypes = [];
     this.ele = document.getElementById(ele);
+    this.maxScale = maxScale;
+    this.minSacle = minSacle;
     
     this.renderData = this.mapData((data, deep, parentTop)=> {
       data.id =   '__' + Math.ceil(Math.random() * 1000 *1000 * 1000);
@@ -25,7 +36,6 @@ const component_flow = class {
       Object.defineProperties(data,Object.getOwnPropertyDescriptors(cell));
       data.deep = deep; // 重写属性
       data.topArr = parentTop;  // 重写属性
-      // console.log('data' , data, deep, parentTop);
       return data;
     }, flow_Data);
   }
@@ -34,14 +44,16 @@ const component_flow = class {
    * 注册画布
    */  
   initPage(){
-    const svgStr = '<svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">'+
+    const svgStr =  '<svg viewBox="0 0 500 300"  preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" id="component-flow-pager_content">'+
 
-                  '</svg';
+                    '</svg';
     const html = new DOMParser().parseFromString(svgStr, "text/xml");
-    this.svgPage = html.getElementsByTagName('svg')[0];
-
-    this.ele.appendChild(this.svgPage);
-    console.log( this.svgPage );
+    const svgPage = html.getElementsByTagName('svg')[0];
+    const [ width, height ] = [this.ele.offsetWidth, this.ele.offsetHeight];
+    svgPage.setAttribute('width', width);
+    svgPage.setAttribute('height', height);
+    this.ele.appendChild(svgPage);
+    return svgPage;
   }
 
   // 总体注册
@@ -52,7 +64,6 @@ const component_flow = class {
     };
     mapAction[type]();
   }
-
   // 注册单元格
   regietser_cell( content ){
     if( Object.prototype.toString(content) === '[object Object]' ){
@@ -129,7 +140,6 @@ const component_flow = class {
 
   renderLine(lineArr){
     const lineAvgArr = this.regietserRenderLine(lineArr);
-    console.log( lineAvgArr);
     lineAvgArr.forEach(line=> {
       this.svgPage.appendChild(line);
     })
@@ -163,7 +173,63 @@ const component_flow = class {
   }
 
   bindEvent(){
+    //鼠标滚轮事件
+    const isFirefox = navigator.userAgent.indexOf("Firefox") != -1;
+    //Firefox事件：DOMMouseScroll、IE/Opera/Chrome事件：mousewheel
+    const mousewheel = isFirefox ? "DOMMouseScroll" : "mousewheel";
+    let isInpager = false, isMouseDown = false ;
+    this.svgPage.addEventListener('mouseover',(e)=>isInpager = true);
+    this.svgPage.addEventListener('mouseout',(e)=>isInpager = false);
+    this.svgPage.addEventListener('mousedown',(e)=>isMouseDown = true);
+    this.svgPage.addEventListener('mouseup',(e)=>isMouseDown = false);
+    const scrollFunc = (e)=> {
+      e = e || window.event;
+      if(e.preventDefault) e.preventDefault();
+      if( isInpager ){
+        const { wheelDelta  } = e;
+        if(wheelDelta  === 150 ){
+          let [x,y,Vwidth,Vheight,rate, width,height] = this.scaleAnimaltion();
+          [x,y,Vwidth,Vheight]  = [x,y,Vwidth + (Vwidth / 10 * rate) ,Vheight + Vwidth / 10];
+          if( this.minSacle &&  width / Vwidth  < this.minSacle  ) Vwidth = width / this.minSacle;
+          if( this.minSacle && height / Vheight  < this.minSacle  ) Vheight = height / this.minSacle;
+          if( Vwidth === Infinity || Vheight === Infinity )return;
+          this.svgPage.setAttribute("viewBox", [x,y,Vwidth,Vheight].join(' '))
+        }else{
+          let [x,y,Vwidth,Vheight,rate, width,height] = this.scaleAnimaltion();
+          [x,y,Vwidth,Vheight]  = [x,y,Vwidth - (Vwidth / 10 * rate) ,Vheight - Vwidth / 10];
+          if( this.maxScale &&  width / Vwidth  > this.maxScale  ) Vwidth = width / this.maxScale;
+          if( this.maxScale && height / Vheight  > this.maxScale  ) Vheight = height / this.maxScale;
+          if( Vwidth < 0 || Vheight < 0)return;
+          this.svgPage.setAttribute("viewBox", [x,y,Vwidth,Vheight].join(' '))     
+        }
+      }
+    }
+    // 为画布添加监听滚轮事件
+    this.svgPage.addEventListener(mousewheel,scrollFunc);
 
+    const mouseMoveFunc = (e)=> {
+      if( isMouseDown ) {
+        let [x,y,Vwidth,Vheight,rate, width,height] = this.scaleAnimaltion();
+        const { movementX,movementY} = e;
+        const rateX = Vwidth / width;
+        const rateY = Vheight / height;
+        x -= movementX * rateX;
+        y -= movementY * rateY;
+        this.svgPage.setAttribute("viewBox", [x,y,Vwidth,Vheight].join(' '))     
+      }
+    }
+    // 为画布添加拖拽事件
+    this.svgPage.addEventListener('mousemove', mouseMoveFunc)
+  }
+  
+  /**
+   * 
+   * return  [x,y,Vwidth,Vheight, rate, width,height]
+   */
+  scaleAnimaltion( ){
+    let [x,y,Vwidth,Vheight] = this.svgPage.getAttribute('viewBox').split(' ').map(Number);
+    const [width,height] = [this.svgPage.getAttribute('width'),this.svgPage.getAttribute('height')];
+    return [x,y,Vwidth,Vheight, Math.round(width / height * 100 ) / 100, width,height];
   }
 }
 
@@ -204,7 +270,9 @@ const flow = new component_flow({
         },
       ]
     }
-  ]
+  ],
+  maxScale: 2,
+  minSacle: 0.8
 });
 
 flow.regietser({ type: 'cell', content: base_cell });
