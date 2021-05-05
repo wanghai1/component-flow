@@ -2,7 +2,6 @@
 // _表示不希望向外暴露的属性即私有属性
 export const cell = {
   id: '',
-  deep: 0,
   topArr: [],
   top: '',
   left: 0,
@@ -11,18 +10,23 @@ export const cell = {
   height: 0,
   render: '',
   cell_sapce_width: 20,  // 默认宽度间距
-  cell_sapce_height: 0, // 默认高度间距
+  cell_sapce_height: 0,  // 默认高度间距
   _render:undefined,
+  isInpage: false,       // 是否已经渲染在页面中
   svg: undefined,
-  // _child_max_height: '', // 子孩子中最大的宽度
+  isOpen: true,          // 
+  _open: true,           // 
+  _child_max_height: '', // 子孩子中最大的宽度
   cell_type: 'base_cell',
 };
 
+// 当为render赋值的时候设置 width 和 Hieght 的值
 Object.defineProperty(cell, 'render',{
   set: function(render_func){
     if( render_func && Object.prototype.toString.call(render_func) === '[object Function]' ){
       const html = new DOMParser().parseFromString(render_func(this), "text/xml");
       const svg = html.getElementsByTagName('svg')[0];
+      svg.setAttribute('id', this.id);
       this.svg = svg;
       this.width = (this.svg.getBBox().width || this.svg.width.baseVal.value) + this.cell_sapce_width;
       this.height = (this.svg.getBBox().height || this.svg.height.baseVal.value) + this.cell_sapce_height;
@@ -31,41 +35,11 @@ Object.defineProperty(cell, 'render',{
   }
 })
 
-// Object.defineProperty( cell , 'svg', {
-//   enumerable: true,
-//   get : function(){
-//     if( this._svg ){
-//       return this._svg
-//     };
-//     // debugger;
-//     if( this.render && Object.prototype.toString.call(this.render) === '[object Function]'){
-//       const html = new DOMParser().parseFromString(this.render(this), "text/xml");
-//       const svg = html.getElementsByTagName('svg')[0];
-//       if( svg ){
-//         this._svg = svg;
-//         // this.width = this._svg.getBBox().width || this._svg.width.baseVal.value;
-//         this.height = this._svg.getBBox().height || this._svg.height.baseVal.value;
-//       }
-//       return svg;
-//     }
-//     return undefined;
-//   }
-// });
-
-// Object.defineProperty( cell , 'width', {
-//   enumerable: true,
-//   get : function(){
-//     if( this._svg ){
-//       return this._svg.getBBox().width || this._svg.width.baseVal.value;
-//     };
-//     return 0;
-//   }
-// });
-
 Object.defineProperty( cell , '_child_max_height', {
   enumerable: true,
   get : function(){
-    if( this.children ){
+    if( this.children && this._open ){
+      // console.log(this.children);
       return this.children.reduce((pre,next)=>{
         return pre + ( next._child_max_height || next.height)
       },0);
@@ -80,7 +54,8 @@ Object.defineProperty( cell , 'top', {
     const top_arr_width = this.topArr.reduce((pre,next)=> {
       return pre + next._child_max_height
     },0);
-    return Math.floor((this._child_max_height   - this.height)  / 2 + top_arr_width); 
+    const a = this._child_max_height === this.height ? 0 : ((this._child_max_height   - this.height)  / 2);
+    return Math.floor ( a + top_arr_width); 
   }
 });
 
@@ -91,6 +66,15 @@ Object.defineProperty( cell , 'left', {
   }
 });
 
+// Object.defineProperty( cell , 'isOpen', {
+//   enumerable: true,
+//   set : function(val){
+//     this._open = val
+//   },
+//   get: function(){
+//     return this._open
+//   }
+// });
 
 
 export const line = {

@@ -17,25 +17,54 @@ const component_flow = class {
     this.bindEvent();
   }
 
+  /**
+   * 初始化数据
+   * @param {*
+   *      target,      // svg || document || cavance
+   *      ele,         // element
+   *      flow_Data,   // 渲染数据
+   *      maxScale,    // 最大缩放
+   *      minSacle,    // 最小缩放
+   *      spaceWidth,  // width间距
+   *      spaceHeight, // height间距
+   *      LineArrList, // 动画节点，需要在插入之后删除
+   * } options 
+   */
   initData({ 
-    target,   // svg || document || cavance
-    ele,      // 
-    flow_Data, // 渲染数据
-    maxScale,
-    minSacle
-  }){
-    this.target = target;
+    ele,
+    flow_Data,
+    ...otherOptions
+  } = options){
+    Object.keys(otherOptions).forEach(key=> this[key] = otherOptions[key] );
+
     this.renderCellTypes = [];
     this.ele = document.getElementById(ele);
-    this.maxScale = maxScale;
-    this.minSacle = minSacle;
-    
+    this.LineArrList = [];
+
     this.renderData = this.mapData((data, deep, parentTop)=> {
-      data.id =   '__' + Math.ceil(Math.random() * 1000 *1000 * 1000);
-      data.__self = data;
+      const copyPropyty = {};
+      for(let key in data ){
+        if(cell.hasOwnProperty(key)){
+          copyPropyty[key] = data[key]
+        }
+      };
+
       Object.defineProperties(data,Object.getOwnPropertyDescriptors(cell));
+      Object.keys( copyPropyty ).forEach(key=> {  data[key] = copyPropyty[key]}); 
+
+      data.id =   '__' + Math.ceil(Math.random() * 1000 *1000 * 1000);
       data.deep = deep; // 重写属性
       data.topArr = parentTop;  // 重写属性
+      data.cell_sapce_width = this.spaceWidth || data.cell_sapce_width;
+      data.cell_sapce_height = this.spaceHeight || data.cell_sapce_height;
+      data.childrenList = [];
+      if(data.children) {
+        this.mapData((item)=> {
+          data.childrenList.push(item);
+          return item;
+        }, data.children)
+      }
+      // this.mapData
       return data;
     }, flow_Data);
   }
@@ -46,7 +75,7 @@ const component_flow = class {
   initPage(){
     const svgStr =  '<svg viewBox="0 0 500 300"  preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" id="component-flow-pager_content">'+
 
-                    '</svg';
+                    '</svg>';
     const html = new DOMParser().parseFromString(svgStr, "text/xml");
     const svgPage = html.getElementsByTagName('svg')[0];
     const [ width, height ] = [this.ele.offsetWidth, this.ele.offsetHeight];
@@ -83,66 +112,236 @@ const component_flow = class {
   }
 
   render () {
+    
+
+    // 为每个单元格——实例化
+    this.renderData = this.mapData(( data )=> {
+      const { render } = data;
+      if(!render){
+        this.initCellData(data)
+      }
+      return data;
+    }, this.renderData);
+
+    this.renderCell();
+    this.renderLine();
+
+  }
+
+  observeArray(func){
+    const oldArraryPropoty = Array.prototype;
+    const arrayMethods = Object.create(oldArraryPropoty);
+    let methods = ["push", "shift", "pop", "unshift", "reverse", "sort", "splice"];
+
+    methods.forEach((method)=> {
+      arrayMethods[method] = function(params){
+        const resOld = oldArraryPropoty.prototype.apply(params);
+        // func(method, );
+        func(method,...params);
+        return resOld;
+      }
+    });
+    return arrayMethods;
+  }
+
+  /**
+   * 初始化cellData
+   * @param {*Object: cellData} data 
+   */
+  initCellData(data){
     // 选择渲染的单元格
     const cell_templete = this.renderCellTypes[0];
+    data =  Object.assign(data, cell_templete);
+    let isRender = false; // 避免触发set
+    const isOpen = data.isOpen;
+    const that = this;
+    // 定义数据驱动模型
+    Object.defineProperty( data , 'isOpen', {
+      enumerable: true,
+      set : function(val){
+        this._open = val;
+        if(isRender) that.resize();
+      },
+      get: function(){
+        return this._open;
+      }
+    });
 
+    // 监听 children 原型链事件
+    data.isOpen = isOpen;
+    // 设置事件
+    const { svg, bindEvent } = data;
+    if( bindEvent ){
+      bindEvent(svg, data);
+    };
+    isRender = true;
+  }
+
+  /**
+   * 将cell数据根据不同的 type 添加到页面当中：需要判断开启关闭状态；和是否在页面中
+   * @param {*} item 
+   */
+  renderCell(item){
+    this.mapData((item)=> {
+      const { svg, left, top, isOpen } = item;
+      svg.setAttribute('x', left);
+      svg.setAttribute('y', top);
+      this.svgPage.appendChild(svg);
+      item.isInpager = true;
+      return isOpen  && item ;
+    }, this.renderData);
+  }
+
+  /**
+   * 目前选择每次重绘线条来达到对应的效果
+   */
+  renderLine(){
+    this.destoryLine();
     // 存储渲染的连线数据对象 
     let lineArr = [];
-
-    // 为每个单元格添加函数对象
-    this.renderData = this.mapData(( data )=> {
-      Object.assign(data, cell_templete);
-      setTimeout(()=> {
-        console.log('newData',data, data.top, data._child_max_width );
-      }, 200);
-      if( data.children && data.children.length > 0){
-        const childCounts = data.children.length;
-        data.children.forEach(item=> {
+    // 计算每个线条数据
+    this.mapData((data)=> {
+      const {children , isOpen} = data;
+      if( children && children.length > 0 && isOpen ){
+        children.forEach(item=> {
           lineArr.push({
             start: data,
             end : item
           })
         })
-      }
-      return data;
-    }, this.renderData);
+      };
+      return isOpen &&  data ;
+    },this.renderData );
 
     // // 重新计算连线的起点和终点 -- 因为
     lineArr = lineArr.map( ( value )=> {
       let { start, end } = value;
-      // debugger;
+      const startLeft = Number(start.svg.getAttribute('x'));
+      const startTop = Number(start.svg.getAttribute('y'));
+      const endLeft = Number(end.svg.getAttribute('x'));
+      const endTop = Number(end.svg.getAttribute('y'));
       start = {
-        left: start.left + start.width - start.cell_sapce_width,
-        top: start.top + start.height / 2
+        startId: start.id,
+        left: startLeft + start.width - start.cell_sapce_width,
+        top: startTop + start.height / 2
       }
-      // debugger
       end = {
-        left : end.left,
-        top: end.top + end.height / 2 
+        endId: end.id,
+        left : endLeft,
+        top: endTop + end.height / 2 
       }
       return { start, end };
-    })
+    });
 
-    this.renderLine(lineArr);
-    this.renderCell();
-  }
+    const lineAvgArr = lineArr.map(item=> ({
+      startId: item.start.startId,
+      endId: item.end.endId,
+      line: this.regietserRenderLine(item)
+    }));
 
-  renderCell(){
-    this.mapData((item)=> {
-      const { svg, left, top } = item;
-      svg.setAttribute('x', left);
-      svg.setAttribute('y', top);
-      this.svgPage.appendChild(svg);
-
-      return item;
-    }, this.renderData)
-  }
-
-  renderLine(lineArr){
-    const lineAvgArr = this.regietserRenderLine(lineArr);
-    lineAvgArr.forEach(line=> {
+    lineAvgArr.forEach(item=> {
+      const { startId, endId, line } = item;
+      this.LineArrList.push(line);
       this.svgPage.appendChild(line);
-    })
+    });
+  }
+
+  destoryLine(){
+    while(this.LineArrList.length > 0){
+      this.svgPage.removeChild(this.LineArrList.pop())
+    }
+  }
+
+  resize(){
+    let closeDatList = []; // 关闭列表
+    this.mapData((data)=> {
+      const { isOpen, svg, left, top, isInpager, id } = data;
+      if( !isOpen ) closeDatList = closeDatList.concat(data.childrenList);
+      const isIncloseItem = closeDatList.find(item=> item.id === id);
+      if( isInpager ){ // 如果在画布中
+        if(  isIncloseItem ){ // 关闭动作
+          this.svgPage.removeChild(svg);
+          data.isInpager = false;
+        }else{
+          if( svg ){
+            this.animation({ svg, animation:[
+              {attributeName: 'y',attributeType : 'XML' , to : top, dur: 0.5, begin: '0.1', fill:'freeze' },
+              {attributeName: 'x',attributeType : 'XML' , to : left, dur: 0.5 , begin: '0.1', fill:'freeze' }
+            ]});
+          }
+        }
+      }else if(!isIncloseItem) {
+        svg.setAttribute('x', left);
+        svg.setAttribute('y', top);
+        this.svgPage.appendChild(svg);
+        data.isInpager = true;
+      }
+
+      return  data;
+    },this.renderData);
+  }
+
+  appendChild(){
+
+  }
+
+  /**
+   * 
+   * @param {
+   *  svg : svg 元素
+   *  animate: Arrary => Obj 所有svg 可以设置的动画属性
+   *  action: fade_in fade_out
+   * } param0 
+   */
+  animation({
+    svg, animation
+  }){
+    // 动画
+    const _func = (item)=>{
+      const { attributeName, attributeType ,delay ,dur, to } = item;
+      let from = Number(svg.getAttribute(attributeName) || 0 );
+      const stepTime = 20;
+      const steps =  dur * 1000 / stepTime;
+      const averageSpeed = ( to - from ) / steps;
+      let speedStart = averageSpeed * 1.8;
+      const speedEnd = averageSpeed * 0.2;
+      const increasSPead = averageSpeed / steps ;
+
+      let animateInterval  = setInterval(()=> {
+        from += speedStart;
+        this.renderLine();
+        svg.setAttribute(attributeName, from );
+        speedStart -= increasSPead;
+        
+        console.log(2 , from);
+        const isOver  = speedStart > 0 ? ( from >= to ) : ( to >= from );
+        if( isOver  ){
+          clearInterval(animateInterval);
+          animateInterval = null;
+          svg.setAttribute(attributeName, to);
+          this.renderLine();
+        }
+      }, stepTime)
+    }
+
+    for(let item of animation ){
+      _func(item);
+    }
+  }
+
+  clearAnimation(){
+    while( this.animationNodeList.length > 0){
+      const animation = this.animationNodeList.pop();
+      const { svg , animationNodeChildren } = animation;
+      while( animationNodeChildren.length > 0 ){
+        const animate = animationNodeChildren.pop()
+        try{
+          svg.removeChild(animate);
+        }catch(e){
+          console.log(e);
+        }
+      }
+    };
   }
 
 
@@ -159,8 +358,9 @@ const component_flow = class {
       const obj  = func(data, deep, parentTop,...otherParams);
       if( obj.children ){
         obj.children = this.mapData(func, obj.children,  deep + 1, parentTop, ...otherParams);
+        return obj;
       }
-      return obj;
+      return data;     
     }else if( Object.prototype.toString.call(data) === '[object Array]' ){
       const arr = [];
       return data.map( (item ,index )=> {
@@ -219,11 +419,11 @@ const component_flow = class {
       }
     }
     // 为画布添加拖拽事件
-    this.svgPage.addEventListener('mousemove', mouseMoveFunc)
+    this.svgPage.addEventListener('mousemove', mouseMoveFunc);
   }
   
   /**
-   * 
+   *  
    * return  [x,y,Vwidth,Vheight, rate, width,height]
    */
   scaleAnimaltion( ){
@@ -238,6 +438,7 @@ const flow = new component_flow({
   flow_Data: [
     {
       label: '100',
+      isOpen: true,
       // type: '',
       children: [
         {
@@ -245,6 +446,7 @@ const flow = new component_flow({
         },
         {
           label: '201',
+          isOpen: false,
           children: [
             {
               label: '300',
@@ -262,22 +464,26 @@ const flow = new component_flow({
               label: '301',
             },
           ]
-     
         },
         {
-          label: '202',
-         
+          label: '202',    
         },
       ]
     }
   ],
+  spaceWidth: 0,
+  spaceHeight: 10,
   maxScale: 2,
   minSacle: 0.8
 });
 
 flow.regietser({ type: 'cell', content: base_cell });
-flow.regietser({ type: 'line', content: renderLine})
+flow.regietser({ type: 'line', content: renderLine});
 
 flow.render();
 
-console.log(flow, flow.renderData, flow.renderCellTypes );
+// setTimeout(()=> {
+//   flow.renderData[0].isOpen = false;
+// },1000)
+
+// console.log(flow, flow.renderData, flow.renderCellTypes );
