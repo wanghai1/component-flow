@@ -7,18 +7,26 @@ export const base_cell = {
                 '<text xml:space="preserve" text-anchor="start" font-family="Helvetica, Arial, sans-serif" font-size="24" id="svg_7" y="33.55" x="31" fill-opacity="null" stroke-opacity="null" stroke-width="0" stroke="#000" fill="#000000">'+
                   params.label +
                 '</text>'+
+                '<rect id="close" x="102" y="29" stroke="#000" height="5" width="10" > </react>'+
             '</svg>'
   },
-  bindEvent: (ele, params)=> {
-    ele.addEventListener('click', ()=> {
-    
-      // params.children.push({
-      //   label: 1111,
-      // });
+  bindEvent: ({paper , ele,params,setData })=> {
+    let i = 0;
+    // ele.addEventListener('click', (event)=> {
+    //   params.children.push({label: i++});
+    //   // params.children.pop();
+    //   setData(params);
+    //   event.stopPropagation();
+    //   event.preventDefault();
+    // }, false);
 
+
+    const openEle = ele.getElementById('close');
+    openEle.addEventListener('click',(event)=>{
       params.isOpen = !params.isOpen;
-      console.log(params);
-    })
+      event.preventDefault();
+      event.stopPropagation();
+    }, false)
     // document.addEventListener
     // 
   }

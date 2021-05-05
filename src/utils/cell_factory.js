@@ -8,9 +8,9 @@ export const cell = {
   right: 0,
   width: '',
   height: 0,
-  render: '',
+  // render: '',
   cell_sapce_width: 20,  // 默认宽度间距
-  cell_sapce_height: 0,  // 默认高度间距
+  cell_sapce_height: 40,  // 默认高度间距
   _render:undefined,
   isInpage: false,       // 是否已经渲染在页面中
   svg: undefined,
@@ -38,7 +38,7 @@ Object.defineProperty(cell, 'render',{
 Object.defineProperty( cell , '_child_max_height', {
   enumerable: true,
   get : function(){
-    if( this.children && this._open ){
+    if( this.children && this.children.length && this._open ){
       // console.log(this.children);
       return this.children.reduce((pre,next)=>{
         return pre + ( next._child_max_height || next.height)

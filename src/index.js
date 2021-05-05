@@ -27,6 +27,7 @@ const component_flow = class {
    *      minSacle,    // 最小缩放
    *      spaceWidth,  // width间距
    *      spaceHeight, // height间距
+   *      mouseKey,    // 键盘按下的key
    *      LineArrList, // 动画节点，需要在插入之后删除
    * } options 
    */
@@ -36,37 +37,11 @@ const component_flow = class {
     ...otherOptions
   } = options){
     Object.keys(otherOptions).forEach(key=> this[key] = otherOptions[key] );
-
     this.renderCellTypes = [];
     this.ele = document.getElementById(ele);
     this.LineArrList = [];
-
-    this.renderData = this.mapData((data, deep, parentTop)=> {
-      const copyPropyty = {};
-      for(let key in data ){
-        if(cell.hasOwnProperty(key)){
-          copyPropyty[key] = data[key]
-        }
-      };
-
-      Object.defineProperties(data,Object.getOwnPropertyDescriptors(cell));
-      Object.keys( copyPropyty ).forEach(key=> {  data[key] = copyPropyty[key]}); 
-
-      data.id =   '__' + Math.ceil(Math.random() * 1000 *1000 * 1000);
-      data.deep = deep; // 重写属性
-      data.topArr = parentTop;  // 重写属性
-      data.cell_sapce_width = this.spaceWidth || data.cell_sapce_width;
-      data.cell_sapce_height = this.spaceHeight || data.cell_sapce_height;
-      data.childrenList = [];
-      if(data.children) {
-        this.mapData((item)=> {
-          data.childrenList.push(item);
-          return item;
-        }, data.children)
-      }
-      // this.mapData
-      return data;
-    }, flow_Data);
+    this.mouseKey = null;
+    this.renderData = flow_Data;
   }
 
   /**
@@ -112,49 +87,80 @@ const component_flow = class {
   }
 
   render () {
-    
-
     // 为每个单元格——实例化
-    this.renderData = this.mapData(( data )=> {
-      const { render } = data;
-      if(!render){
+    this.renderData = this.mapData(( data, deep, parentTop, parent )=> {
+      const { _render } = data;
+      if(!_render){
         this.initCellData(data)
       }
+      // 这些属性是需要外部维护的
+      data.deep = deep; // 重写属性
+      data.topArr = parentTop;  // 重写属性
+      data.parent = parent;
+      data.childrenList = [];
+      if(data.children && data.children.length) {
+        this.mapData((item)=> {
+          data.childrenList.push(item);
+          return item;
+        }, data.children)
+      };
       return data;
     }, this.renderData);
-
+    this.svgPage.innerHTML = '';
+    this.LineArrList = [];
     this.renderCell();
     this.renderLine();
-
   }
 
-  observeArray(func){
-    const oldArraryPropoty = Array.prototype;
-    const arrayMethods = Object.create(oldArraryPropoty);
-    let methods = ["push", "shift", "pop", "unshift", "reverse", "sort", "splice"];
-
-    methods.forEach((method)=> {
-      arrayMethods[method] = function(params){
-        const resOld = oldArraryPropoty.prototype.apply(params);
-        // func(method, );
-        func(method,...params);
-        return resOld;
-      }
-    });
-    return arrayMethods;
-  }
+  // observeArray(func){
+  //   const arrayProto = Array.prototype;
+  //   const arrayMethods = Object.create(arrayProto);
+  //   let methods = ["push", "shift", "pop", "unshift", "reverse", "sort", "splice"];
+  //   methods.forEach((method)=> {
+  //     Object.defineProperty(arrayMethods, method, {
+  //       value(...args) {
+  //           console.log('用户传进来的参数', args);
+  //           // 真正的push 保证数据如用户期望
+  //           arrayProto[method].apply(this, args);
+  //           console.log('this',this);
+            
+  //           func(method,args);
+  //       },
+  //       enumerable: true,
+  //       writable: true,
+  //       configurable: true,
+  //     });
+  //   });
+  //   return arrayMethods;
+  // }
 
   /**
    * 初始化cellData
    * @param {*Object: cellData} data 
    */
   initCellData(data){
+    const that = this;
+    // 1_ 赋值 cell_factory 类
+    const copyPropyty = {};
+    for(let key in data ){
+      if(cell.hasOwnProperty(key)){
+        copyPropyty[key] = data[key]
+      }
+    };
+    Object.defineProperties(data,Object.getOwnPropertyDescriptors(cell));
+    Object.keys( copyPropyty ).forEach(key=> {  data[key] = copyPropyty[key]}); 
+    data.id =   '__' + Math.ceil(Math.random() * 1000 *1000 * 1000);
+    data.children = data.children || [];
+    data.cell_sapce_width = this.spaceWidth || data.cell_sapce_width;
+    data.cell_sapce_height = this.spaceHeight || data.cell_sapce_height;
+
+    // 2_ 渲染定义的cell_render函数
     // 选择渲染的单元格
     const cell_templete = this.renderCellTypes[0];
     data =  Object.assign(data, cell_templete);
     let isRender = false; // 避免触发set
     const isOpen = data.isOpen;
-    const that = this;
+
     // 定义数据驱动模型
     Object.defineProperty( data , 'isOpen', {
       enumerable: true,
@@ -166,30 +172,98 @@ const component_flow = class {
         return this._open;
       }
     });
-
     // 监听 children 原型链事件
+    // const observeArrayFunc = this.observeArray((methodType, value)=> {
+    //   setTimeout(()=> {
+    //     if( ["push", "shift", "pop", "unshift", "reverse", "sort", "splice"].includes(methodType)){
+    //       console.log('触发函数了', value);
+    //       this.render();
+    //       this.resize();
+    //     }
+    //   },0)
+    // });
+    
+    // data.children.__proto__ = observeArrayFunc;
+
     data.isOpen = isOpen;
     // 设置事件
     const { svg, bindEvent } = data;
     if( bindEvent ){
-      bindEvent(svg, data);
+      bindEvent( {paper :'', ele:svg ,params : data,setData : (...args)=> this.render(args) } );
     };
+    // cell 单元格拖拽事件
+    const moveEvent = (e)=> {
+      const { movementX,movementY} = e;
+      let [ x, y ] = [svg.getAttribute('x'), svg.getAttribute('y')].map(Number);
+      [x,y] = [ x + movementX, y+movementY];
+      console.log(111, movementX,movementY);
+      svg.setAttribute('x',x);
+      svg.setAttribute('y',y);
+    };
+    let isDrage = false;
+    svg.addEventListener('mousedown',(e)=> {
+      if(this.mouseKey === 'ControlLeft' || this.mouseKey === 'ControlRight'){
+        isDrage = true;
+        // 为所有单元格添加空隙
+        const { id, parent, svg }  = data;    
+        const index = parent.children.findIndex((item)=> item.id === id );
+        parent.children.splice(index,1);
+        this.render();
+        data.isOpen = false;
+        this.renderCell(data);
+        this.svgPage.addEventListener('mousemove', moveEvent);
+        console.log(this.renderData);
+      }
+      // console.log(this.mouseKey);
+    });
+    svg.addEventListener('mouseup',(e)=> {
+      if(isDrage){
+        isDrage = false;
+        this.svgPage.removeEventListener('mousemove', moveEvent);
+        console.log(this.renderData);
+      }
+      // console.log(this.mouseKey);
+    });
     isRender = true;
   }
 
   /**
    * 将cell数据根据不同的 type 添加到页面当中：需要判断开启关闭状态；和是否在页面中
-   * @param {*} item 
+   * @param {*} data 有item表示独立渲染 默认使用 this.renderData;
    */
-  renderCell(item){
+  renderCell(data){
     this.mapData((item)=> {
-      const { svg, left, top, isOpen } = item;
+      const { svg, left, top, isOpen, height , width,cell_sapce_height} = item;
+      console.log(item);
       svg.setAttribute('x', left);
       svg.setAttribute('y', top);
+      if( !data ){
+        const rect1 = this.createSpaceRect({ x: left,y: top -cell_sapce_height,  height:cell_sapce_height, width, fill:'transparent',stroke:"#e0e0e0" ,'stroke-width': 1.5})
+        rect1.addEventListener('mouseleave', ()=> { 
+          
+        });
+        rect1.addEventListener('mouseover', ()=> { 
+          
+        });
+        this.svgPage.appendChild(rect1);
+  
+        const rect2 = this.createSpaceRect({ x: left,y: top + height- cell_sapce_height ,  height:cell_sapce_height, width, fill:'transparent',stroke:"#e0e0e0" ,'stroke-width': 1.5})
+        rect2.addEventListener('mouseleave', ()=> { });
+        rect2.addEventListener('mouseover', ()=> { });
+        this.svgPage.appendChild(rect2);
+      }
       this.svgPage.appendChild(svg);
       item.isInpager = true;
       return isOpen  && item ;
-    }, this.renderData);
+    }, data || this.renderData);
+  }
+
+  createSpaceRect(options){
+    var rect = document.createElementNS('http://www.w3.org/2000/svg','rect');//creat新的svg节点，rect。
+    Object.keys(options).forEach(key=> {
+      rect.setAttribute(key, options[key])
+    })
+    return rect;
   }
 
   /**
@@ -313,7 +387,6 @@ const component_flow = class {
         svg.setAttribute(attributeName, from );
         speedStart -= increasSPead;
         
-        console.log(2 , from);
         const isOver  = speedStart > 0 ? ( from >= to ) : ( to >= from );
         if( isOver  ){
           clearInterval(animateInterval);
@@ -352,19 +425,19 @@ const component_flow = class {
    * @param  {...any:需要传入func的参数} otherParams 
    * @returns 
    */
-  mapData (func, data, deep = 0, parentTop = [], ...otherParams){
+  mapData (func, data, deep = 0, parentTop = [], partent, ...otherParams){
     if( !data ) return;
     if( Object.prototype.toString.call(data) === '[object Object]'  ){
-      const obj  = func(data, deep, parentTop,...otherParams);
+      const obj  = func(data, deep, parentTop, partent,...otherParams);
       if( obj.children ){
-        obj.children = this.mapData(func, obj.children,  deep + 1, parentTop, ...otherParams);
+        obj.children = this.mapData(func, obj.children,  deep + 1, parentTop, obj , ...otherParams);
         return obj;
       }
       return data;     
     }else if( Object.prototype.toString.call(data) === '[object Array]' ){
       const arr = [];
       return data.map( (item ,index )=> {
-        const res =  this.mapData(func, item,deep , parentTop.concat(arr), ...otherParams);
+        const res =  this.mapData(func, item,deep , parentTop.concat(arr),partent, ...otherParams);
         arr.push(item);
         return res;
       }) 
@@ -382,6 +455,26 @@ const component_flow = class {
     this.svgPage.addEventListener('mouseout',(e)=>isInpager = false);
     this.svgPage.addEventListener('mousedown',(e)=>isMouseDown = true);
     this.svgPage.addEventListener('mouseup',(e)=>isMouseDown = false);
+    // 键盘事件
+    // let mouseKey = null;
+    const keyDownFunc = (event)=> {
+      event = event || window.event;
+      if (event.preventDefaulted) {
+        return; // Do nothing if event already handled
+      }
+      const {key, code} = event;
+      if( code && code !== this.mouseKey){
+        this.mouseKey = code;
+      }
+    };
+    window.addEventListener("keydown", keyDownFunc);
+    const keyUpFunc = (event)=> {
+      this.mouseKey = null;
+    };
+    window.addEventListener("keyup", keyUpFunc);
+
+
+    // 为画布添加监听滚轮事件 
     const scrollFunc = (e)=> {
       e = e || window.event;
       if(e.preventDefault) e.preventDefault();
@@ -404,11 +497,10 @@ const component_flow = class {
         }
       }
     }
-    // 为画布添加监听滚轮事件
     this.svgPage.addEventListener(mousewheel,scrollFunc);
-
+    // 画布拖拽事件 鼠标按下加空格触发
     const mouseMoveFunc = (e)=> {
-      if( isMouseDown ) {
+      if( isMouseDown  && this.mouseKey === "Space" ) {
         let [x,y,Vwidth,Vheight,rate, width,height] = this.scaleAnimaltion();
         const { movementX,movementY} = e;
         const rateX = Vwidth / width;
@@ -418,7 +510,6 @@ const component_flow = class {
         this.svgPage.setAttribute("viewBox", [x,y,Vwidth,Vheight].join(' '))     
       }
     }
-    // 为画布添加拖拽事件
     this.svgPage.addEventListener('mousemove', mouseMoveFunc);
   }
   
@@ -472,9 +563,9 @@ const flow = new component_flow({
     }
   ],
   spaceWidth: 0,
-  spaceHeight: 10,
+  spaceHeight: 20,
   maxScale: 2,
-  minSacle: 0.8
+  minSacle: 0.1
 });
 
 flow.regietser({ type: 'cell', content: base_cell });
