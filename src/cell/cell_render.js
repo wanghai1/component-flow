@@ -12,13 +12,13 @@ export const base_cell = {
   },
   bindEvent: ({paper , ele,params,setData })=> {
     let i = 0;
-    // ele.addEventListener('click', (event)=> {
-    //   params.children.push({label: i++});
-    //   // params.children.pop();
-    //   setData(params);
-    //   event.stopPropagation();
-    //   event.preventDefault();
-    // }, false);
+    ele.addEventListener('click', (event)=> {
+      params.children.push({label: i++});
+      // params.children.pop();
+      setData();
+      event.stopPropagation();
+      event.preventDefault();
+    }, false);
 
 
     const openEle = ele.getElementById('close');

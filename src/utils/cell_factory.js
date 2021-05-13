@@ -4,6 +4,8 @@ export const cell = {
   id: '',
   topArr: [],
   top: '',
+  _top: '', // get
+  _left: 0, // get
   left: 0,
   right: 0,
   width: '',
@@ -39,32 +41,55 @@ Object.defineProperty( cell , '_child_max_height', {
   enumerable: true,
   get : function(){
     if( this.children && this.children.length && this._open ){
-      // console.log(this.children);
       return this.children.reduce((pre,next)=>{
-        return pre + ( next._child_max_height || next.height)
+        return pre +  Math.max(next.parent.height, ( next._child_max_height || next.height))
       },0);
     };
     return this.height;
   }
 });
 
-Object.defineProperty( cell , 'top', {
+Object.defineProperty( cell , '_top', {
   enumerable: true,
+  set: function(value){
+    this.top = value
+  },
   get : function(){
     const top_arr_width = this.topArr.reduce((pre,next)=> {
       return pre + next._child_max_height
     },0);
     const a = this._child_max_height === this.height ? 0 : ((this._child_max_height   - this.height)  / 2);
-    return Math.floor ( a + top_arr_width); 
+    const res = Math.floor ( a + top_arr_width)
+    return this.top || res; 
   }
 });
 
-Object.defineProperty( cell , 'left', {
+Object.defineProperty( cell , '_left', {
   enumerable: true,
+  set: function(value){
+    this.left = value
+  },
   get : function(){
-    return this.deep * ( this.width )
+    return this.left || this.deep * ( this.width )
   }
 });
+
+// Object.defineProperty( cell , 'left', {
+//   enumerable: true,
+//   get: function(value){
+//     return this._left;
+//   },
+//   set: function(val){
+//     this.left = val;
+//   }
+// });
+
+// Object.defineProperty( cell , 'top', {
+//   enumerable: true,
+//   set: function(value){
+//     this._top = value
+//   },
+// });
 
 // Object.defineProperty( cell , 'isOpen', {
 //   enumerable: true,

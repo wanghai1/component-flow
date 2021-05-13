@@ -2,6 +2,7 @@ require("./style/comme.sass");
 import { cell } from "./utils/cell_factory";
 import { base_cell } from "./cell/cell_render.js";//
 import { renderLine } from "./lines/line_render.js";//
+import { insert_cell } from "./cell/insert_cell_render";
 
 
 const component_flow = class {
@@ -42,13 +43,14 @@ const component_flow = class {
     this.LineArrList = [];
     this.mouseKey = null;
     this.renderData = flow_Data;
+    this.time = null;
   }
 
   /**
    * 注册画布
    */  
   initPage(){
-    const svgStr =  '<svg viewBox="0 0 500 300"  preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" id="component-flow-pager_content">'+
+    const svgStr =  '<svg viewBox="0 0 800 500"  preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" id="component-flow-pager_content">'+
 
                     '</svg>';
     const html = new DOMParser().parseFromString(svgStr, "text/xml");
@@ -70,13 +72,13 @@ const component_flow = class {
   }
   // 注册单元格
   regietser_cell( content ){
-    if( Object.prototype.toString(content) === '[object Object]' ){
+    if( Object.prototype.toString.call(content) === '[object Object]' ){
       if( !content.render_type && this.target !== 'svg' ){
         console.warn('cell 的渲染对象需要定义为 svg、document、或cavance');
       }else{
         this.renderCellTypes.push( content );
       };
-    }else  if( Object.prototype.toString(content) === '[object Arrary]' ){
+    }else  if( Object.prototype.toString.call(content) === '[object Array]' ){
       this.renderCellTypes = [ ...this.renderCellTypes, ...content ];
     }else{
       console.warn('cell 类型定义不正确，你需要定义一个cell对象或者cell对象数组');
@@ -88,6 +90,14 @@ const component_flow = class {
 
   render () {
     // 为每个单元格——实例化
+    this.dataFactory();
+    this.svgPage.innerHTML = '';
+    this.LineArrList = [];
+    this.renderCell();
+    this.renderLine();
+  }
+
+  dataFactory(){
     this.renderData = this.mapData(( data, deep, parentTop, parent )=> {
       const { _render } = data;
       if(!_render){
@@ -106,33 +116,7 @@ const component_flow = class {
       };
       return data;
     }, this.renderData);
-    this.svgPage.innerHTML = '';
-    this.LineArrList = [];
-    this.renderCell();
-    this.renderLine();
   }
-
-  // observeArray(func){
-  //   const arrayProto = Array.prototype;
-  //   const arrayMethods = Object.create(arrayProto);
-  //   let methods = ["push", "shift", "pop", "unshift", "reverse", "sort", "splice"];
-  //   methods.forEach((method)=> {
-  //     Object.defineProperty(arrayMethods, method, {
-  //       value(...args) {
-  //           console.log('用户传进来的参数', args);
-  //           // 真正的push 保证数据如用户期望
-  //           arrayProto[method].apply(this, args);
-  //           console.log('this',this);
-            
-  //           func(method,args);
-  //       },
-  //       enumerable: true,
-  //       writable: true,
-  //       configurable: true,
-  //     });
-  //   });
-  //   return arrayMethods;
-  // }
 
   /**
    * 初始化cellData
@@ -156,12 +140,12 @@ const component_flow = class {
 
     // 2_ 渲染定义的cell_render函数
     // 选择渲染的单元格
-    const cell_templete = this.renderCellTypes[0];
-    data =  Object.assign(data, cell_templete);
+    const cell_templete = this.renderCellTypes.find(item=> item.name === data.cell_type ) || this.renderCellTypes[0];
+    data = Object.assign(data, cell_templete);
     let isRender = false; // 避免触发set
     const isOpen = data.isOpen;
 
-    // 定义数据驱动模型
+    // 3_ 定义数据驱动模型
     Object.defineProperty( data , 'isOpen', {
       enumerable: true,
       set : function(val){
@@ -172,51 +156,180 @@ const component_flow = class {
         return this._open;
       }
     });
-    // 监听 children 原型链事件
-    // const observeArrayFunc = this.observeArray((methodType, value)=> {
-    //   setTimeout(()=> {
-    //     if( ["push", "shift", "pop", "unshift", "reverse", "sort", "splice"].includes(methodType)){
-    //       console.log('触发函数了', value);
-    //       this.render();
-    //       this.resize();
-    //     }
-    //   },0)
-    // });
-    
-    // data.children.__proto__ = observeArrayFunc;
 
     data.isOpen = isOpen;
-    // 设置事件
+    // 3_ 设置事件
     const { svg, bindEvent } = data;
     if( bindEvent ){
       bindEvent( {paper :'', ele:svg ,params : data,setData : (...args)=> this.render(args) } );
     };
-    // cell 单元格拖拽事件
+
+    // 4_ cell 单元格拖拽事件
+    let isappendChild = 0; // 1 单独插入子孩子  2 在有children的情况下插入
+    let appData = null;
+    let copyData =  Object.defineProperties({},Object.getOwnPropertyDescriptors(data));
+    copyData.render = this.renderCellTypes.find(item=> item.name === 'insert_cell' ).render;
+    copyData.name = 'insert_cell';
     const moveEvent = (e)=> {
-      const { movementX,movementY} = e;
-      let [ x, y ] = [svg.getAttribute('x'), svg.getAttribute('y')].map(Number);
-      [x,y] = [ x + movementX, y+movementY];
-      console.log(111, movementX,movementY);
-      svg.setAttribute('x',x);
-      svg.setAttribute('y',y);
+      const { movementX,movementY,offsetX , offsetY} = e;
+      let [ x, y, width,height ] =  [ 'x', 'y', 'width','height' ].map(val=>  Number(svg.getAttribute(val)));
+      const [paperX,paperY, Vwidth,Vheight, rate, Parperwidth, Pargerheight ] = this.scaleAnimaltion();
+      const rateViewPaper = Vwidth /  Parperwidth; // 视图和真实px 比率
+
+      // 4-1 设置鼠标对应的画布位置
+      const [ mouseX, mouseY] = [ offsetX * rateViewPaper + paperX , offsetY * rateViewPaper + paperY ];
+
+      
+      // 4-2-1 使用 节流函数 
+      let XAiaxs , yAiaxs ;  
+      let newappData = undefined;  
+      const throttleFn = ()=> {
+        // 4-2-2 找出在 x y 上跟鼠标在同一水平轴上的单元格
+        this.mapData((data)=> {
+          let { parent, _left,  _top, height , width , label, cell_sapce_height, cell_sapce_width,name }  = data;
+          height = height - cell_sapce_height;
+          width = width - cell_sapce_height;
+          const item = {
+            parent, _left,  _top, height , width , data, mouseX, mouseY
+          }
+          if(name !== 'insert_cell' && _left < mouseX &&  mouseX  < (_left + width) && mouseY > (_top - height * 1.5 ) &&  mouseY < (_top + height * 2.5) ){ // 兄弟节点 
+            XAiaxs = XAiaxs || item;
+            const Xwidth = Math.min( Math.abs( mouseY - _top ), Math.abs( mouseY - _top - height) );
+            const Xitem =  Math.min( Math.abs( mouseY - XAiaxs._top ), Math.abs( mouseY - XAiaxs._top - XAiaxs.height) );
+            if( Xwidth < Xitem ){
+              XAiaxs = item;
+            }
+          }
+          if(name !== 'insert_cell' && _top < mouseY &&  mouseY <  (_top + height)  && mouseX > (_left + width) &&  mouseX < (_left + width * 1.8)  ){ // 子节点-优先级更高
+            yAiaxs = yAiaxs || item;
+            const Ywidth = Math.min( Math.abs( mouseX - _left ), Math.abs( mouseX - _left - width) );
+            const Yitem =  Math.min( Math.abs( yAiaxs.mouseX - yAiaxs._left ), Math.abs( yAiaxs.mouseX - yAiaxs._left - yAiaxs.width) );
+            if( Ywidth < Yitem ){
+              yAiaxs = item;
+            }
+          }
+          return data;
+        }, this.renderData);
+
+        // 4-3 找出可以插入的节点
+
+        // 4-4-1 先定义删除节点方法 复用
+        const commFunc = ()=> {
+          // console.log( );
+          // this.render();
+          this.dataFactory();
+          // if(!newappData) 
+
+          // const { mouseX, mouseY } = newappData
+          let dataInsertArr 
+          if( newappData.data.children.find(item=> item.name === 'insert_cell') ){
+            dataInsertArr = newappData.data.children;
+            
+          }
+          if(dataInsertArr) console.log('dataInsertArr',  dataInsertArr );
+          // copyData._left = mouseX;
+          // copyData._top =  mouseY
+          // this.renderCell(copyData);
+        }
+          
+        if( yAiaxs && yAiaxs.parent){ // yAiaxs的优先级更高
+            newappData = yAiaxs;
+        }else if( XAiaxs ){
+            let index = 0;
+            index = XAiaxs.parent.children.findIndex(item=> item.id === XAiaxs.data.id);
+            if(  mouseY > XAiaxs.data._top ){
+              index += 1;
+            }
+            // else{
+            //   index -= 1;
+            // }
+            newappData = XAiaxs;
+            newappData.insertIndex = index;
+        }else{
+          if(isappendChild){
+            if( appData.insertIndex >= 0 ){
+              appData.parent.children.splice(appData.insertIndex,1 );
+            }else{
+              appData.data.children.splice(0,1);
+            };
+            // commFunc();
+            appData = newappData;
+            console.log('已经删除节点');
+          
+            isappendChild = false;
+          }
+        }
+
+        // 4-4 没有已经插入的直接插入子节点，有的话判断是否时同一个节点，不是的话删除在插入
+      
+        if( newappData ){
+          if( isappendChild ){
+            // 判断是否是相同的节点
+            if( newappData.insertIndex !== appData.insertIndex || 
+                newappData.parent.id !== appData.parent.id || 
+                newappData.data.id !== appData.data.id
+              ){
+              console.log('clear', appData);
+
+              if( appData.insertIndex >= 0 ){
+                appData.parent.children.splice(appData.insertIndex,1 );
+              }else{
+                appData.data.children.splice(0,1);
+              };
+              commFunc();
+              appData = newappData;
+            
+              isappendChild = false;
+            }else {
+            
+              // console.log('newappData', appData,  newappData);
+            }
+          
+          }else{
+            console.log('插入',newappData);
+            let { insertIndex } = newappData;
+            // insertIndex = insertIndex || 0;
+            if( insertIndex >= 0 ){ // 兄弟节点插入
+              newappData.parent.children.splice( insertIndex, 0, copyData);
+            }else{
+              newappData.data.children.splice( insertIndex, 0, copyData);
+            }
+            commFunc();
+            appData = null;
+            appData = newappData;
+            isappendChild = true;
+          }
+        }
+      }
+
+      const fn =  this.throttle(throttleFn,100);
+      
+      fn();
+
+      data._left = mouseX - width / 2;
+      data._top = mouseY - height / 2;
+      svg.setAttribute('x',mouseX - width / 2);
+      svg.setAttribute('y',mouseY - height / 2);
+
+      // 设置方块跟随鼠标一起移动
     };
     let isDrage = false;
     svg.addEventListener('mousedown',(e)=> {
       if(this.mouseKey === 'ControlLeft' || this.mouseKey === 'ControlRight'){
         isDrage = true;
-        // 为所有单元格添加空隙
         const { id, parent, svg }  = data;    
         const index = parent.children.findIndex((item)=> item.id === id );
+        // this.spaceWidth += 20;
+        // this.spaceHeight += 20;
         parent.children.splice(index,1);
         this.render();
         data.isOpen = false;
         this.renderCell(data);
         this.svgPage.addEventListener('mousemove', moveEvent);
-        console.log(this.renderData);
       }
-      // console.log(this.mouseKey);
     });
     svg.addEventListener('mouseup',(e)=> {
+      // debugger;
       if(isDrage){
         isDrage = false;
         this.svgPage.removeEventListener('mousemove', moveEvent);
@@ -233,25 +346,9 @@ const component_flow = class {
    */
   renderCell(data){
     this.mapData((item)=> {
-      const { svg, left, top, isOpen, height , width,cell_sapce_height} = item;
-      console.log(item);
-      svg.setAttribute('x', left);
-      svg.setAttribute('y', top);
-      if( !data ){
-        const rect1 = this.createSpaceRect({ x: left,y: top -cell_sapce_height,  height:cell_sapce_height, width, fill:'transparent',stroke:"#e0e0e0" ,'stroke-width': 1.5})
-        rect1.addEventListener('mouseleave', ()=> { 
-          
-        });
-        rect1.addEventListener('mouseover', ()=> { 
-          
-        });
-        this.svgPage.appendChild(rect1);
-  
-        const rect2 = this.createSpaceRect({ x: left,y: top + height- cell_sapce_height ,  height:cell_sapce_height, width, fill:'transparent',stroke:"#e0e0e0" ,'stroke-width': 1.5})
-        rect2.addEventListener('mouseleave', ()=> { });
-        rect2.addEventListener('mouseover', ()=> { });
-        this.svgPage.appendChild(rect2);
-      }
+      const { svg, _left, _top, isOpen, height , width,cell_sapce_height} = item;
+      svg.setAttribute('x', _left);
+      svg.setAttribute('y', _top);
       this.svgPage.appendChild(svg);
       item.isInpager = true;
       return isOpen  && item ;
@@ -296,13 +393,13 @@ const component_flow = class {
       const endTop = Number(end.svg.getAttribute('y'));
       start = {
         startId: start.id,
-        left: startLeft + start.width - start.cell_sapce_width,
-        top: startTop + start.height / 2
+        _left: startLeft + start.width - start.cell_sapce_width,
+        _top: startTop + start.height / 2
       }
       end = {
         endId: end.id,
-        left : endLeft,
-        top: endTop + end.height / 2 
+        _left : endLeft,
+        _top: endTop + end.height / 2 
       }
       return { start, end };
     });
@@ -329,7 +426,7 @@ const component_flow = class {
   resize(){
     let closeDatList = []; // 关闭列表
     this.mapData((data)=> {
-      const { isOpen, svg, left, top, isInpager, id } = data;
+      const { isOpen, svg, _left, _top, isInpager, id } = data;
       if( !isOpen ) closeDatList = closeDatList.concat(data.childrenList);
       const isIncloseItem = closeDatList.find(item=> item.id === id);
       if( isInpager ){ // 如果在画布中
@@ -339,14 +436,14 @@ const component_flow = class {
         }else{
           if( svg ){
             this.animation({ svg, animation:[
-              {attributeName: 'y',attributeType : 'XML' , to : top, dur: 0.5, begin: '0.1', fill:'freeze' },
-              {attributeName: 'x',attributeType : 'XML' , to : left, dur: 0.5 , begin: '0.1', fill:'freeze' }
+              {attributeName: 'y',attributeType : 'XML' , to : _top, dur: 0.5, begin: '0.1', fill:'freeze' },
+              {attributeName: 'x',attributeType : 'XML' , to : _left, dur: 0.5 , begin: '0.1', fill:'freeze' }
             ]});
           }
         }
       }else if(!isIncloseItem) {
-        svg.setAttribute('x', left);
-        svg.setAttribute('y', top);
+        svg.setAttribute('x', _left);
+        svg.setAttribute('y', _top);
         this.svgPage.appendChild(svg);
         data.isInpager = true;
       }
@@ -415,6 +512,22 @@ const component_flow = class {
         }
       }
     };
+  }
+
+  // 节流函数
+  throttle(fn,wait){
+    // this.time = null;
+    return ()=> {
+      const arg = arguments
+      if(!this.time){
+        // log()
+        setTimeout(()=> {
+          fn(...arg);
+          clearTimeout(this.time);
+          this.time = null;
+        },wait)
+      }
+    }
   }
 
 
@@ -537,17 +650,17 @@ const flow = new component_flow({
         },
         {
           label: '201',
-          isOpen: false,
+          isOpen: true,
           children: [
             {
               label: '300',
 
               children: [
                 {
-                  label: '300'
+                  label: '400'
                 },
                 {
-                  label: '301'
+                  label: '401'
                 },
               ]
             },
@@ -568,7 +681,7 @@ const flow = new component_flow({
   minSacle: 0.1
 });
 
-flow.regietser({ type: 'cell', content: base_cell });
+flow.regietser({ type: 'cell', content: [ base_cell, insert_cell]});
 flow.regietser({ type: 'line', content: renderLine});
 
 flow.render();
