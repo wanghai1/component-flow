@@ -213,23 +213,24 @@ const component_flow = class {
 
         // 4-3 找出可以插入的节点
 
-        // 4-4-1 先定义删除节点方法 复用
+        // 4-4-1 先定义渲染节点方法 复用
         const commFunc = ()=> {
-          // console.log( );
-          // this.render();
           this.dataFactory();
-          // if(!newappData) 
-
-          // const { mouseX, mouseY } = newappData
           let dataInsertArr 
           if( newappData.data.children.find(item=> item.name === 'insert_cell') ){
             dataInsertArr = newappData.data.children;
-            
+            const { left, top , cell_sapce_width} = newappData.data;
+            console.log('dataInsertArr', left, top , cell_sapce_width, newappData );
+            copyData._left = left + cell_sapce_width;
+            copyData._top =  top
+            this.renderCell(copyData);
+            // console.log('dataInsertArr',  newappData );
+            // 
           }
-          if(dataInsertArr) console.log('dataInsertArr',  dataInsertArr );
+          // if(dataInsertArr) 
           // copyData._left = mouseX;
           // copyData._top =  mouseY
-          // this.renderCell(copyData);
+          // 
         }
           
         if( yAiaxs && yAiaxs.parent){ // yAiaxs的优先级更高
@@ -690,4 +691,4 @@ flow.render();
 //   flow.renderData[0].isOpen = false;
 // },1000)
 
-// console.log(flow, flow.renderData, flow.renderCellTypes );
+console.log(flow, flow.renderData, flow.renderCellTypes );
