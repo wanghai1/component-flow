@@ -359,12 +359,12 @@ const component_flow = class {
       start = {
         startId: start.id,
         _left: startLeft + start.width - start.cell_sapce_width,
-        _top: startTop + start.height / 2
+        _top: startTop + ( start.height - start.cell_sapce_height) / 2
       }
       end = {
         endId: end.id,
         _left : endLeft,
-        _top: endTop + end.height / 2 
+        _top: endTop + (end.height - end.cell_sapce_height) / 2 
       }
       return { start, end };
     });
@@ -494,7 +494,6 @@ const component_flow = class {
       }
     }
   }
-
 
   /**
    * 
@@ -641,7 +640,7 @@ const flow = new component_flow({
     }
   ],
   spaceWidth: 0,
-  spaceHeight: 10 ,
+  spaceHeight: 30 ,
   maxScale: 2,
   minSacle: 0.1
 });
