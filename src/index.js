@@ -90,8 +90,8 @@ const component_flow = class {
 
   render () {
     // 为每个单元格——实例化
-    this.dataFactory();
     this.svgPage.innerHTML = '';
+    this.dataFactory();
     this.LineArrList = [];
     this.renderCell();
     this.renderLine();
@@ -101,13 +101,14 @@ const component_flow = class {
     this.renderData = this.mapData(( data, deep, parentTop, parent )=> {
       const { _render } = data;
       if(!_render){
-        this.initCellData(data)
+        this.initCellData(data);
       }
       // 这些属性是需要外部维护的
       data.deep = deep; // 重写属性
       data.topArr = parentTop;  // 重写属性
       data.parent = parent;
       data.childrenList = [];
+      
       if(data.children && data.children.length) {
         this.mapData((item)=> {
           data.childrenList.push(item);
@@ -145,7 +146,7 @@ const component_flow = class {
     let isRender = false; // 避免触发set
     const isOpen = data.isOpen;
 
-    // 3_ 定义数据驱动模型
+    // 3_ 定义数据驱动模型 设置isopen时请使用 _open 设置避免触发动画
     Object.defineProperty( data , 'isOpen', {
       enumerable: true,
       set : function(val){
@@ -165,10 +166,10 @@ const component_flow = class {
     };
 
     // 4_ cell 单元格拖拽事件
-    let isappendChild = 0; // 1 单独插入子孩子  2 在有children的情况下插入
-    let appData = null;
+    let appendData = null;
     let copyData =  Object.defineProperties({},Object.getOwnPropertyDescriptors(data));
     copyData.render = this.renderCellTypes.find(item=> item.name === 'insert_cell' ).render;
+    copyData._open = false;
     copyData.name = 'insert_cell';
     const moveEvent = (e)=> {
       const { movementX,movementY,offsetX , offsetY} = e;
@@ -178,11 +179,10 @@ const component_flow = class {
 
       // 4-1 设置鼠标对应的画布位置
       const [ mouseX, mouseY] = [ offsetX * rateViewPaper + paperX , offsetY * rateViewPaper + paperY ];
-
-      
+  
       // 4-2-1 使用 节流函数 
       let XAiaxs , yAiaxs ;  
-      let newappData = undefined;  
+      let newappendData = undefined;  
       const throttleFn = ()=> {
         // 4-2-2 找出在 x y 上跟鼠标在同一水平轴上的单元格
         this.mapData((data)=> {
@@ -212,102 +212,62 @@ const component_flow = class {
         }, this.renderData);
 
         // 4-3 找出可以插入的节点
-
-        // 4-4-1 先定义删除节点方法 复用
-        const commFunc = ()=> {
-          // console.log( );
-          // this.render();
-          this.dataFactory();
-          // if(!newappData) 
-
-          // const { mouseX, mouseY } = newappData
-          let dataInsertArr 
-          if( newappData.data.children.find(item=> item.name === 'insert_cell') ){
-            dataInsertArr = newappData.data.children;
-            
-          }
-          if(dataInsertArr) console.log('dataInsertArr',  dataInsertArr );
-          // copyData._left = mouseX;
-          // copyData._top =  mouseY
-          // this.renderCell(copyData);
-        }
-          
-        if( yAiaxs && yAiaxs.parent){ // yAiaxs的优先级更高
-            newappData = yAiaxs;
-        }else if( XAiaxs ){
+        if( yAiaxs ){ // yAiaxs的优先级更高
+            newappendData = yAiaxs;
+        }else if( XAiaxs && XAiaxs.parent ){
             let index = 0;
             index = XAiaxs.parent.children.findIndex(item=> item.id === XAiaxs.data.id);
             if(  mouseY > XAiaxs.data._top ){
               index += 1;
             }
-            // else{
-            //   index -= 1;
-            // }
-            newappData = XAiaxs;
-            newappData.insertIndex = index;
-        }else{
-          if(isappendChild){
-            if( appData.insertIndex >= 0 ){
-              appData.parent.children.splice(appData.insertIndex,1 );
-            }else{
-              appData.data.children.splice(0,1);
-            };
-            // commFunc();
-            appData = newappData;
-            console.log('已经删除节点');
-          
-            isappendChild = false;
-          }
+            newappendData = XAiaxs;
+            newappendData.insertIndex = index;
         }
 
         // 4-4 没有已经插入的直接插入子节点，有的话判断是否时同一个节点，不是的话删除在插入
-      
-        if( newappData ){
-          if( isappendChild ){
+        if( newappendData ){
             // 判断是否是相同的节点
-            if( newappData.insertIndex !== appData.insertIndex || 
-                newappData.parent.id !== appData.parent.id || 
-                newappData.data.id !== appData.data.id
+            if( !appendData || 
+                newappendData.insertIndex !== appendData.insertIndex || 
+                (newappendData.parent && appendData.parent && newappendData.parent.id !== appendData.parent.id )|| 
+                newappendData.data.id !== appendData.data.id
               ){
-              console.log('clear', appData);
 
-              if( appData.insertIndex >= 0 ){
-                appData.parent.children.splice(appData.insertIndex,1 );
+              if( Number(newappendData.insertIndex) !== Number(newappendData.insertIndex)){
+                if( newappendData.data.children.length === 0){
+                  const data = newappendData.data;
+                  copyData._left = data._left + data.width;
+                  copyData._top =  data._top;
+                  this.renderCell(copyData);
+                }
               }else{
-                appData.data.children.splice(0,1);
-              };
-              commFunc();
-              appData = newappData;
-            
-              isappendChild = false;
-            }else {
-            
-              // console.log('newappData', appData,  newappData);
+                const data = newappendData.parent;
+                const insertIndex = newappendData.insertIndex;
+                
+                if( insertIndex === newappendData.parent.children.length){
+                  const insertItem = newappendData.parent.children[newappendData.parent.children.length - 1];
+                  copyData._left = insertItem._left;
+                  copyData._top =  insertItem._top + insertItem.height / 2;
+                  this.renderCell(copyData);
+                } else {
+                  //if(insertIndex === 0)
+                  const insertItem = newappendData.parent.children[insertIndex];
+                  copyData._left = insertItem._left;
+                  copyData._top =  insertItem._top - insertItem.height / 2;
+                  this.renderCell(copyData);
+                }
+                
+                
+              }
+              appendData = newappendData;
             }
-          
-          }else{
-            console.log('插入',newappData);
-            let { insertIndex } = newappData;
-            // insertIndex = insertIndex || 0;
-            if( insertIndex >= 0 ){ // 兄弟节点插入
-              newappData.parent.children.splice( insertIndex, 0, copyData);
-            }else{
-              newappData.data.children.splice( insertIndex, 0, copyData);
-            }
-            commFunc();
-            appData = null;
-            appData = newappData;
-            isappendChild = true;
-          }
         }
       }
 
-      const fn =  this.throttle(throttleFn,100);
+      // const fn =  this.throttle(,20);
       
-      fn();
-
-      data._left = mouseX - width / 2;
-      data._top = mouseY - height / 2;
+      // fn();
+      throttleFn();
       svg.setAttribute('x',mouseX - width / 2);
       svg.setAttribute('y',mouseY - height / 2);
 
@@ -319,8 +279,6 @@ const component_flow = class {
         isDrage = true;
         const { id, parent, svg }  = data;    
         const index = parent.children.findIndex((item)=> item.id === id );
-        // this.spaceWidth += 20;
-        // this.spaceHeight += 20;
         parent.children.splice(index,1);
         this.render();
         data.isOpen = false;
@@ -329,13 +287,20 @@ const component_flow = class {
       }
     });
     svg.addEventListener('mouseup',(e)=> {
-      // debugger;
       if(isDrage){
-        isDrage = false;
+        isDrage = false; 
+        if( appendData ){
+          data._open = true;
+          if( Number(appendData.insertIndex) === Number(appendData.insertIndex) ){
+            appendData.parent.children.splice(appendData.insertIndex,0, data);   
+          }else{
+            appendData.data.children.push(data);
+          }
+          this.dataFactory();
+          this.render();
+        }
         this.svgPage.removeEventListener('mousemove', moveEvent);
-        console.log(this.renderData);
       }
-      // console.log(this.mouseKey);
     });
     isRender = true;
   }
@@ -347,9 +312,9 @@ const component_flow = class {
   renderCell(data){
     this.mapData((item)=> {
       const { svg, _left, _top, isOpen, height , width,cell_sapce_height} = item;
-      svg.setAttribute('x', _left);
-      svg.setAttribute('y', _top);
-      this.svgPage.appendChild(svg);
+      item.svg.setAttribute('x', item._left);
+      item.svg.setAttribute('y', item._top);
+      this.svgPage.appendChild(item.svg);
       item.isInpager = true;
       return isOpen  && item ;
     }, data || this.renderData);
@@ -676,7 +641,7 @@ const flow = new component_flow({
     }
   ],
   spaceWidth: 0,
-  spaceHeight: 20,
+  spaceHeight: 10 ,
   maxScale: 2,
   minSacle: 0.1
 });

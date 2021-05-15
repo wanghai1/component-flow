@@ -7,7 +7,7 @@ export const base_cell = {
                 '<text xml:space="preserve" text-anchor="start" font-family="Helvetica, Arial, sans-serif" font-size="24" id="svg_7" y="33.55" x="31" fill-opacity="null" stroke-opacity="null" stroke-width="0" stroke="#000" fill="#000000">'+
                   params.label +
                 '</text>'+
-                '<rect id="close" x="102" y="29" stroke="#000" height="5" width="10" > </react>'+
+                '<rect id="close" x="102" y="26" stroke="#000" height="5" width="10" > </react>'+
             '</svg>'
   },
   bindEvent: ({paper , ele,params,setData })=> {
