@@ -101,11 +101,3 @@ Object.defineProperty( cell , '_left', {
 //   }
 // });
 
-
-export const line = {
-  from: [],
-  to: [],
-  render: function(){
-
-  }
-}
