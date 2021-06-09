@@ -9,6 +9,7 @@ export const cell = {
   left: 0,
   right: 0,
   width: '',
+  maxLeft: 0,
   height: 0,
   // render: '',
   cell_sapce_width: 20,  // 默认宽度间距
@@ -26,8 +27,14 @@ export const cell = {
 Object.defineProperty(cell, 'render',{
   set: function(render_func){
     if( render_func && Object.prototype.toString.call(render_func) === '[object Function]' ){
-      const html = new DOMParser().parseFromString(render_func(this), "text/xml");
+      let html = render_func(this);
+
+      html = `<svg width="${this.contentWidth}" height="${this.contentHeight}" xmlns="http://www.w3.org/2000/svg" class="base_cell" >`+
+              `<g> <foreignObject x="0" y="0" width="100%" height="100%" >  ${html} </foreignObject> </g>  </svg>`;
+      html = new DOMParser().parseFromString(html, "text/xml");
       const svg = html.getElementsByTagName('svg')[0];
+      // console.log(html, svg);
+      // debugger;
       svg.setAttribute('id', this.id);
       this.svg = svg;
       this.width = (this.svg.getBBox().width || this.svg.width.baseVal.value) + this.cell_sapce_width;
@@ -37,7 +44,7 @@ Object.defineProperty(cell, 'render',{
   }
 })
 
-Object.defineProperty( cell , '_child_max_height', {
+Object.defineProperty( cell , '_child_max_height', { // 子孩子的最大宽度
   enumerable: true,
   get : function(){
     if( this.children && this.children.length && this._open ){
@@ -70,7 +77,7 @@ Object.defineProperty( cell , '_left', {
     this.left = value
   },
   get : function(){
-    return this.left || this.deep * ( this.width )
+    return this.left || this.maxLeft
   }
 });
 

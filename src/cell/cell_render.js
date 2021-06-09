@@ -1,7 +1,7 @@
 /*
  * @Author: your name
  * @Date: 2021-05-06 13:13:43
- * @LastEditTime: 2021-05-13 14:09:51
+ * @LastEditTime: 2021-06-09 14:13:06
  * @LastEditors: Please set LastEditors
  * @Description: In User Settings Edit
  * @FilePath: \component-flow\src\cell\cell_render.js
@@ -9,15 +9,16 @@
 export const base_cell = {
   render_type: 'svg',
   name:'base_cell',
+  contentWidth: 111,
+  contentHeight: 55,
   render:(params)=> {
-    // console.log(pa);
-    return '<svg width="115" height="55" xmlns="http://www.w3.org/2000/svg" id="base_cell">'+
-                '<rect stroke="#000" id="svg_1" height="52" width="111" y="2" x="2" stroke-width="1.5" fill="#fff"> </rect>'+
-                '<text xml:space="preserve" text-anchor="start" font-family="Helvetica, Arial, sans-serif" font-size="24" id="svg_7" y="33.55" x="31" fill-opacity="null" stroke-opacity="null" stroke-width="0" stroke="#000" fill="#000000">'+
-                  params.label + 
-                '</text>'+
-                '<rect id="close" x="102" y="25" stroke="#000" height="5" width="10" > </react>'+
-            '</svg>'
+    const width = 111 + Math.ceil(Math.random() * 50);
+    const height = 55 + Math.ceil(Math.random() * 20);
+
+    return `<div style="width:110px;height:55px;background:red" xmlns="http://www.w3.org/1999/xhtml">`  +
+              `${params.label }`+
+              `<div id="close"> 关闭 </div>`+
+           `</div>`
   },
   bindEvent: ({paper , ele,params,setData })=> {
     let i = 0;
