@@ -15,7 +15,7 @@ export const base_cell = {
     const width = 111 + Math.ceil(Math.random() * 50);
     const height = 55 + Math.ceil(Math.random() * 20);
 
-    return `<div style="width:110px;height:55px;background:red" xmlns="http://www.w3.org/1999/xhtml">`  +
+    return `<div style="width:110px;height:55px;background:red;user-select:none" xmlns="http://www.w3.org/1999/xhtml">`  +
               `${params.label }`+
               `<div id="close"> 关闭 </div>`+
            `</div>`
@@ -31,11 +31,11 @@ export const base_cell = {
     }, false);
     
 
-    const openEle = ele.getElementById('close');
-    openEle.addEventListener('click',(event)=>{
-      params.isOpen = !params.isOpen;
-      event.preventDefault();
-      event.stopPropagation();
-    }, false);
+    // const openEle = ele.getElementById('close');
+    // openEle.addEventListener('click',(event)=>{
+    //   params.isOpen = !params.isOpen;
+    //   event.preventDefault();
+    //   event.stopPropagation();
+    // }, false);
   }
 }

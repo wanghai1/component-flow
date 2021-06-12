@@ -205,17 +205,24 @@ const component_flow = class {
     // 4_ cell 单元格拖拽事件
     let appendData = null;
     let copyData =  Object.defineProperties({},Object.getOwnPropertyDescriptors(data));
-    copyData.render = this.renderCellTypes.find(item=> item.name === 'insert_cell' ).render;
+    copyData.render = this.renderCellTypes.find(item=> item.name === 'insert_cell' ).render; // 改变他的render内容
     copyData._open = false;
     copyData.name = 'insert_cell';
     const moveEvent = (e)=> {
-      const { movementX,movementY,offsetX , offsetY} = e;
+      if(e.stopPropagation) e.stopPropagation();
+      if(e.preventDefault) e.preventDefault();
+      e.cancelBubble=true;
+      e.returnValue=false;
+      const { movementX,movementY,layerX , layerY} = e;
       let [ x, y, width,height ] =  [ 'x', 'y', 'width','height' ].map(val=>  Number(svg.getAttribute(val)));
       const [paperX,paperY, Vwidth,Vheight, rate, Parperwidth, Pargerheight ] = this.scaleAnimaltion();
       const rateViewPaper = Vwidth /  Parperwidth; // 视图和真实px 比率
 
       // 4-1 设置鼠标对应的画布位置
-      const [ mouseX, mouseY] = [ offsetX * rateViewPaper + paperX , offsetY * rateViewPaper + paperY ];
+      const [ mouseX, mouseY] = [ layerX * rateViewPaper + paperX , layerY * rateViewPaper + paperY ];
+      // 设置方块跟随鼠标一起移动
+      svg.setAttribute('x',mouseX - width / 2);
+      svg.setAttribute('y',mouseY - height / 2);
   
       // 4-2-1 使用 节流函数 
       let XAiaxs , yAiaxs ;  
@@ -248,7 +255,7 @@ const component_flow = class {
         return data;
       }, this.renderData);
 
-      // 4-3 找出可以插入的节点
+      // // 4-3 找出可以插入的节点
       if( yAiaxs ){ // yAiaxs的优先级更高
           newappendData = yAiaxs;
       }else if( XAiaxs && XAiaxs.parent ){
@@ -261,21 +268,22 @@ const component_flow = class {
           newappendData.insertIndex = index;
       }
 
-      // 4-4 没有已经插入的直接插入子节点，有的话判断是否时同一个节点，不是的话删除在插入
+      // // 4-4 没有已经插入的直接插入子节点，有的话判断是否时同一个节点，不是的话删除再插入
       if( newappendData ){
           // 判断是否是相同的节点
-          if( !appendData || 
-              newappendData.insertIndex !== appendData.insertIndex || 
+          if( !appendData || // 原本没有节点插入
+              newappendData.insertIndex !== appendData.insertIndex || // 插入节点跟前插入的节点不是同一个index
               (newappendData.parent && appendData.parent && newappendData.parent.id !== appendData.parent.id )|| 
               newappendData.data.id !== appendData.data.id
             ){
 
-            if( Number(newappendData.insertIndex) !== Number(newappendData.insertIndex)){
+            if( Number(newappendData.insertIndex) !== Number(newappendData.insertIndex)){ // 原本没有节点插入
               if( newappendData.data.children.length === 0){
                 const data = newappendData.data;
                 copyData._left = data._left + data.width;
                 copyData._top =  data._top;
-                this.renderCell(copyData);
+                copyData.svg.setAttribute('x', copyData._left);
+                copyData.svg.setAttribute('y', copyData._top);
               }
             }else{
               const data = newappendData.parent;
@@ -285,39 +293,45 @@ const component_flow = class {
                 const insertItem = newappendData.parent.children[newappendData.parent.children.length - 1];
                 copyData._left = insertItem._left;
                 copyData._top =  insertItem._top + insertItem.height / 2;
-                this.renderCell(copyData);
+                copyData.svg.setAttribute('x', copyData._left);
+                copyData.svg.setAttribute('y', copyData._top);
               } else {
                 const insertItem = newappendData.parent.children[insertIndex];
                 copyData._left = insertItem._left;
                 copyData._top =  insertItem._top - insertItem.height / 2;
-                this.renderCell(copyData);
+                copyData.svg.setAttribute('x', copyData._left);
+                copyData.svg.setAttribute('y', copyData._top);
               }
-              
-              
             }
             appendData = newappendData;
           }
       }
-
-      svg.setAttribute('x',mouseX - width / 2);
-      svg.setAttribute('y',mouseY - height / 2);
-
-      // 设置方块跟随鼠标一起移动
     };
+    const event = (e)=> {
+      setTimeout(()=> {
+        moveEvent(e)
+      },0)
+    }
     let isDrage = false;
     svg.addEventListener('mousedown',(e)=> {
+      if(e.stopPropagation) e.stopPropagation();
+      if(e.preventDefault) e.preventDefault();
       if(this.mouseKey === 'ControlLeft' || this.mouseKey === 'ControlRight'){
         isDrage = true;
         const { id, parent, svg }  = data;    
         const index = parent.children.findIndex((item)=> item.id === id );
         parent.children.splice(index,1);
         this.render();
+        copyData._left = data._left;
+        copyData._top = data._top;
+        this.renderCell(copyData);
         data.isOpen = false;
         this.renderCell(data);
         this.svgPage.addEventListener('mousemove', moveEvent);
       }
     });
     svg.addEventListener('mouseup',(e)=> {
+      this.svgPage.removeEventListener('mousemove', moveEvent);
       if(isDrage){
         isDrage = false; 
         if( appendData ){
@@ -351,17 +365,17 @@ const component_flow = class {
       this.svgPage.appendChild(item.svg);
       contentWidth = Math.max( contentWidth, _left + width);
       contentHeight = Math.max( contentHeight, _top + height);
-      cellArrList.push(item.svg);
+      // cellArrList.push(item.svg);
       item.isInpager = true;
       return isOpen  && item ;
     }, data || this.renderData);
 
-    console.log( contentWidth, contentHeight) ;
+    if(data) return;
 
     this.PaperSize.contentWidth = contentWidth;
     this.PaperSize.contentHeight = contentWidth;
 
-    this.svgPage.setAttribute('viewBox',  `0  0 ${contentWidth} ${contentHeight}`);
+    // this.svgPage.setAttribute('viewBox',  `0  0 ${contentWidth} ${contentHeight}`);
 
     // 优化代码
     // cellArrList.forEach((svg)=>{
@@ -386,7 +400,7 @@ const component_flow = class {
     //   }
     // };
 
-    this.cellArrList = cellArrList;
+    // this.cellArrList = cellArrList;
   }
 
   /**
