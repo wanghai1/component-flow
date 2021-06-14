@@ -20,17 +20,35 @@ export const base_cell = {
               `<div id="close"> 关闭 </div>`+
            `</div>`
   },
-  bindEvent: ({paper , ele,params,setData })=> {
+  bindEvent: ({paper , ele, params, render, getClickCoordinate })=> {
     let i = 0;
     ele.addEventListener('click', (event)=> {
       params.children.push({label: i++});
       // params.children.pop();
-      setData();
+      render();
       event.stopPropagation();
       event.preventDefault();
-    }, false);
-    
 
+      const data = getClickCoordinate();
+ 
+      const { clickEle } = data;
+      const { layerX, layerY} = clickEle;
+
+      /**
+       * 
+       */
+      function htmlToElement(html) {
+          var template = document.createElement('template');
+          html = html.trim(); // Never return a text node of whitespace as the result
+          template.innerHTML = html;
+          return template.content.firstChild;
+      }
+      const htmlString = `<div style="position:absolute;width:100px;height:200px;top:${layerY}px;left:${layerX}px;background-color:green;z-index:999999" >`+
+                  `我是tooltip </div>`;
+      const div = htmlToElement(htmlString);
+      paper.appendChild(div);
+
+    }, false);
     // const openEle = ele.getElementById('close');
     // openEle.addEventListener('click',(event)=>{
     //   params.isOpen = !params.isOpen;

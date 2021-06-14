@@ -199,7 +199,7 @@ const component_flow = class {
     // 3_ 设置事件
     const { svg, bindEvent } = data;
     if( bindEvent ){
-      bindEvent( {paper :'', ele:svg ,params : data,setData : (...args)=> this.render(args) } );
+      bindEvent( { paper : this.svgPage.parentNode , ele:svg ,params : data,render : (...args)=> this.render(args), getClickCoordinate: ()=> this.getClickCoordinate() } );
     };
 
     // 4_ cell 单元格拖拽事件
@@ -316,6 +316,7 @@ const component_flow = class {
     svg.addEventListener('mousedown',(e)=> {
       if(e.stopPropagation) e.stopPropagation();
       if(e.preventDefault) e.preventDefault();
+      this.PaperSize.clickEle = e;
       if(this.mouseKey === 'ControlLeft' || this.mouseKey === 'ControlRight'){
         isDrage = true;
         const { id, parent, svg }  = data;    
@@ -638,6 +639,13 @@ const component_flow = class {
     let [x,y,Vwidth,Vheight] = this.svgPage.getAttribute('viewBox').split(' ').map(Number);
     const [width,height] = [this.svgPage.getAttribute('width'),this.svgPage.getAttribute('height')];
     return [x,y,Vwidth,Vheight, Math.round(width / height * 100 ) / 100, width,height];
+  }
+
+  /**
+   * 获取点击坐标时
+   */
+  getClickCoordinate(){
+    return this.PaperSize;
   }
 }
 
